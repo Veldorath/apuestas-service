@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .auth import requiere_admin, usuario_actual
-from .db import conexion, dict_cursor, esperar_bd, init_schema, sembrar_eventos
+from .db import conexion, dict_cursor, esperar_bd, init_schema, sembrar_eventos,ping
 from .simulacion import simular_partido
 
 SELECCIONES = {"local", "empate", "visita"}
@@ -61,11 +61,18 @@ class ResolverRequest(BaseModel):
     resultado: str = Field(description="local | empate | visita")
 
 
-# TODO (alumno): implementar las rutas de salud que usará Kubernetes:
-#   - liveness: ¿el proceso está vivo? (respuesta simple).
-#   - readiness: ¿está listo para recibir tráfico? Debe verificar la BD.
-# Luego configurar livenessProbe/readinessProbe en el Deployment de EKS.
+@app.get("/livez")
+def livez():
+    """Liveness: el proceso esta vivo. NO consulta la BD."""
+    return {"status": "alive"}
 
+
+@app.get("/readyz")
+def readyz():
+    """Readiness: verifica PostgreSQL. 200 si responde; 503 si esta caida."""
+    if ping():
+        return {"status": "ready", "db": "up"}
+    raise HTTPException(status_code=503, detail={"status": "not-ready", "db": "down"})
 
 @app.get("/api/apuestas/eventos")
 def listar_eventos():
